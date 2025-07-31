@@ -1,0 +1,131 @@
+{
+    "bank": "BANQUE POSTALE",
+    "statement_date": "2019-12-02",
+    "account_number": "11",
+    "statement_period": "2019-11-01 to 2019-11-29",
+    "contact_info": {
+        "internet": "labanquepostale.fr",
+        "phone": "01 53 68 37 37",
+        "mail": "LA BANQUE POSTALE, CENTRE FINANCIER, 45900 LA SOURCE CEDEX 9"
+    },
+    "client_info": {
+        "name": "WIN SUPER MARKET",
+        "address": "170 GRANDE RUE, 92310 SEVRES"
+    },
+    "account_details": {
+        "ccp_number": "52177 18 Y 033",
+        "iban": "FR37 2004 1010 1252 1771 8Y03 342",
+        "bic": "PSSTFRPPSCE",
+        "new_balance": 609.59
+    },
+    "transactions": [
+        {
+            "date": "2019-10-31",
+            "description": "Ancien solde",
+            "debit": 0,
+            "credit": 69.33
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 084874 DE 1 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 2.99
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 005869 DE 1 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 3.21
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 023354 DE 3 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 3.81
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 054915 DE 2 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 8.06
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 038091 DE 1 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 12.76
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 016833 DE 3 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 19.87
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 054924 DE 5 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 32.27
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 034175 DE 5 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 32.45
+        },
+        {
+            "date": "2019-11-04",
+            "description": "CREDIT CARTE BANCAIRE REMISE 002470 DE 7 OPE COCCI MARKET SEVRES",
+            "debit": 0,
+            "credit": 40.26
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 038091 DE 1 FA COCCI MARKET SEVRES",
+            "debit": 0.05,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 084874 DE 1 FA COCCI MARKET SEVRES",
+            "debit": 0.05,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 005869 DE 1 FA COCCI MARKET SEVRES",
+            "debit": 0.05,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 054915 DE 2 FA COCCI MARKET SEVRES",
+            "debit": 0.1,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 016833 DE 3 FA COCCI MARKET SEVRES",
+            "debit": 0.15,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 023354 DE 3 FA COCCI MARKET SEVRES",
+            "debit": 0.15,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 034175 DE 5 FA COCCI MARKET SEVRES",
+            "debit": 0.25,
+            "credit": 0
+        },
+        {
+            "date": "2019-11-04",
+            "description": "DEBIT CARTE BANCAIRE COMMIS REMISE 054924 DE 5 FA COCCI MARKET SEVRES",
+            "debit": 0.25,
+            "credit": 0
+        }
+    ]
+}
