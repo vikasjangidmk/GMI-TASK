@@ -1,38 +1,32 @@
+import easyocr
+import tiktoken
 import itertools
 from operator import itemgetter
-import pytesseract
-import tiktoken
 from PIL import Image
+import numpy as np
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Users\vikas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
+reader = easyocr.Reader(['en'], gpu=False)  # Set `gpu=True` if you have CUDA installed
 
 def num_tokens(text, model="gpt-3.5-turbo-0613"):
-    """Return the number of tokens used by a list of messages."""
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
         print("Warning: model not found. Using cl100k_base encoding.")
         encoding = tiktoken.get_encoding("cl100k_base")
-
-    num_tokens = len(encoding.encode(text))
-    return num_tokens
+    return len(encoding.encode(text))
 
 def limit_tokens(text, max_tokens=16000):
-    num_of_tokens = num_tokens(text)
-    if num_of_tokens > max_tokens:
+    if num_tokens(text) > max_tokens:
         return text[:max_tokens]
-    else:
-        return text
+    return text
 
 def cluster_list(xs, tolerance=0):
     if tolerance == 0 or len(xs) < 2:
         return [[x] for x in sorted(xs)]
-    
     groups = []
     xs = list(sorted(xs))
     current_group = [xs[0]]
     last = xs[0]
-
     for x in xs[1:]:
         if x <= (last + tolerance):
             current_group.append(x)
@@ -41,16 +35,13 @@ def cluster_list(xs, tolerance=0):
             current_group = [x]
         last = x
     groups.append(current_group)
-
     return groups
 
 def make_cluster_dict(values, tolerance):
     clusters = cluster_list(list(set(values)), tolerance)
-
     nested_tuples = [
         [(val, i) for val in value_cluster] for i, value_cluster in enumerate(clusters)
     ]
-
     return dict(itertools.chain(*nested_tuples))
 
 def cluster_objects(xs, tolerance):
@@ -60,7 +51,6 @@ def cluster_objects(xs, tolerance):
     get_0, get_1 = itemgetter(0), itemgetter(1)
     cluster_tuples = sorted(((x, cluster_dict.get(key_fn(x))) for x in xs), key=get_1)
     grouped = itertools.groupby(cluster_tuples, key=get_1)
-
     return [list(map(get_0, v)) for k, v in grouped]
 
 def get_avg_char_width(data):
@@ -76,55 +66,53 @@ def get_avg_char_width(data):
 def collate_line(line_chars, tolerance, add_spaces) -> str:
     coll = ""
     last_x1 = 0
-
     for char in sorted(line_chars, key=lambda x: x['coordinates'][0]):
         coll += ' '
         last_x1 += tolerance
-        while last_x1 + tolerance < char['coordinates'][0] and add_spaces: 
+        while last_x1 + tolerance < char['coordinates'][0] and add_spaces:
             coll += " "
             last_x1 += tolerance
         coll += char['value']
         last_x1 = char['coordinates'][2]
-
     return coll[1:] if add_spaces else coll.strip()
 
-def extract_text(data, add_spaces, max_tokens=16000):
+def extract_text(data, add_spaces=True, max_tokens=16000):
     min_height, x_tolerance = get_avg_char_width(data)
-    
     doctop_clusters = cluster_objects(data, tolerance=min_height)
-
-    lines = (
-        collate_line(line_chars, x_tolerance, add_spaces) for line_chars in doctop_clusters
-    )
-
+    lines = (collate_line(line_chars, x_tolerance, add_spaces) for line_chars in doctop_clusters)
     text = "\n".join(lines)
-
     return limit_tokens(text, max_tokens)
 
-def extract_text_ocr(image_file, add_spaces, max_tokens=16000):
-    pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
-    image = Image.open(image_file)
-    ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
+def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000):
+    results = reader.readtext(image_path, detail=1)
+
     data = []
-    for i in range(len(ocr_data['text'])):
-        if ocr_data['text'][i].strip():  
+    for (bbox, text, conf) in results:
+        if conf > 0.5:
+            x1 = int(min([point[0] for point in bbox]))
+            y1 = int(min([point[1] for point in bbox]))
+            x2 = int(max([point[0] for point in bbox]))
+            y2 = int(max([point[1] for point in bbox]))
             datum = {
-                'value': ocr_data['text'][i],
-                'coordinates': [
-                    ocr_data['left'][i],
-                    ocr_data['top'][i],
-                    ocr_data['left'][i] + ocr_data['width'][i],
-                    ocr_data['top'][i] + ocr_data['height'][i]
-                ]
+                'value': text,
+                'coordinates': [x1, y1, x2, y2]
             }
             data.append(datum)
+
     return extract_text(data, add_spaces, max_tokens)
 
-# Example usage:
-# image = Image.open(r'C:\Users\Jawahar\Documents\Interview_task\GMIndia\ocr_check\AOUT 2021.pdf0.jpg')
-# extracted_text = extract_text_ocr(image, add_spaces=True, max_tokens=16000)
+# 🧪 Example usage
+if __name__ == "__main__":
+    input_img = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\creditagricol\Releve_n_010_du_05_11_2019_1564843101_lQdiIJu2.pdf_1.jpg'
+    output_txt = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\ocr\ocr_output.txt'
 
-#save the extracted text
-# with open(r'C:\Users\Jawahar\Documents\Interview_task\GMIndia\ocr_check\extracted_text.txt', 'w') as text_file:
-# 	text_file.write(extracted_text)
-# print(extracted_text)
+    text = extract_text_ocr(input_img, add_spaces=True)
+
+    # Save to text file
+    import os
+    os.makedirs(os.path.dirname(output_txt), exist_ok=True)
+    with open(output_txt, 'w', encoding='utf-8') as f:
+        f.write(text)
+
+    print("✅ OCR extraction complete. Text saved to:")
+    print(output_txt)

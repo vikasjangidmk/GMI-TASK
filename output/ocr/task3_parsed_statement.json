@@ -1,0 +1,51 @@
+{
+    "header": [
+        "SOCIETE GENERALE",
+        "COMPTE D'ENTREPRISE",
+        "en euros",
+        "30003 01057 00020066035 97",
+        "du 01/03/2022 au 31/03/2022",
+        "envoi n'3",
+        "2/2"
+    ],
+    "transactions": [
+        {
+            "date": "30/03/2022",
+            "description": "CARTE X8155 29/03 FREE M0B1LE",
+            "amount": "29.99",
+            "balance": ""
+        },
+        {
+            "date": "30/03/2022",
+            "description": "CARTE X8155 29/03 FREE M0B1LE",
+            "amount": "29.99",
+            "balance": ""
+        },
+        {
+            "date": "30/03/2022",
+            "description": "CARTE X8155 29/03 FNAC STE GENNEV1",
+            "amount": "327.99",
+            "balance": ""
+        },
+        {
+            "date": "31/03/2022",
+            "description": "CARTE X8155 RETRA1T DAB SG 30/03 15H05 M0RSANG SUR 0RGE 00915459",
+            "amount": "310.00",
+            "balance": ""
+        }
+    ],
+    "summary": [
+        "TOTAUX DES MOUVEMENTS: 2.952,73",
+        "NOUVEAU SOLDE AU 31/03/2022: 1.714,96",
+        "Opération exonérée de commission de mouvement",
+        "Votre compte est éligible à la garantie du Fonds de Garantie des Dépôts et de Résolution selon les textes en vigueur",
+        "PROGRAMME DE FIDÉLITÉ JAZZ DOUBLE AVANTAGE",
+        "Montant cumulé des dépenses pour votre carte n' 497388XXXXXX8155",
+        "Au 31/03/2022, vous avez dépensé 4 832,19 euros depuis le 01/09/2021 (date de renouvellement de votre cotisation)",
+        "Rappel des seuils de déclenchement de l'offre tarifaire Business et Jazz Pro",
+        "7.500 euros dépensés sur une période de 12 mois, pour une réduction de 25% sur la cotisation si vous détenez à la fois une carte CB Visa Business et Jazz Pro",
+        "Societe Generale 552 120 222 RCS Paris",
+        "SA au capital de 1 046 405 540,00 Eur",
+        "29, Haussmann 75009 Paris"
+    ]
+}

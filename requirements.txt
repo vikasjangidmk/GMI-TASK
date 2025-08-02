@@ -9,4 +9,6 @@ tiktoken
 pytesseract
 opencv-python
 matplotlib
+pandas 
+openpyxl
 
