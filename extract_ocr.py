@@ -1,3 +1,4 @@
+import os
 import easyocr
 import tiktoken
 import itertools
@@ -5,35 +6,30 @@ from operator import itemgetter
 from PIL import Image
 import numpy as np
 
-reader = easyocr.Reader(['en'], gpu=False)  # Set `gpu=True` if you have CUDA installed
+def get_easyocr_reader(lang='en', gpu=False):
+    return easyocr.Reader([lang], gpu=gpu)
 
 def num_tokens(text, model="gpt-3.5-turbo-0613"):
     try:
         encoding = tiktoken.encoding_for_model(model)
     except KeyError:
-        print("Warning: model not found. Using cl100k_base encoding.")
+        print("⚠️ Model not found, falling back to cl100k_base.")
         encoding = tiktoken.get_encoding("cl100k_base")
     return len(encoding.encode(text))
 
 def limit_tokens(text, max_tokens=16000):
-    if num_tokens(text) > max_tokens:
-        return text[:max_tokens]
-    return text
+    return text[:max_tokens] if num_tokens(text) > max_tokens else text
 
 def cluster_list(xs, tolerance=0):
     if tolerance == 0 or len(xs) < 2:
         return [[x] for x in sorted(xs)]
-    groups = []
-    xs = list(sorted(xs))
-    current_group = [xs[0]]
-    last = xs[0]
+    groups, current_group = [], [xs[0]]
     for x in xs[1:]:
-        if x <= (last + tolerance):
+        if x <= current_group[-1] + tolerance:
             current_group.append(x)
         else:
             groups.append(current_group)
             current_group = [x]
-        last = x
     groups.append(current_group)
     return groups
 
@@ -61,7 +57,7 @@ def get_avg_char_width(data):
         height = min(height, abs(datum['coordinates'][3] - datum['coordinates'][1]))
         sum_widths += datum['coordinates'][2] - datum['coordinates'][0]
         cnt += len(datum['value'])
-    return height / 2, sum_widths // cnt
+    return height / 2, sum_widths // cnt if cnt > 0 else 10
 
 def collate_line(line_chars, tolerance, add_spaces) -> str:
     coll = ""
@@ -77,13 +73,16 @@ def collate_line(line_chars, tolerance, add_spaces) -> str:
     return coll[1:] if add_spaces else coll.strip()
 
 def extract_text(data, add_spaces=True, max_tokens=16000):
+    if not data:
+        return ""
     min_height, x_tolerance = get_avg_char_width(data)
     doctop_clusters = cluster_objects(data, tolerance=min_height)
     lines = (collate_line(line_chars, x_tolerance, add_spaces) for line_chars in doctop_clusters)
     text = "\n".join(lines)
     return limit_tokens(text, max_tokens)
 
-def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000):
+def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000, lang='en', gpu=False):
+    reader = get_easyocr_reader(lang=lang, gpu=gpu)
     results = reader.readtext(image_path, detail=1)
 
     data = []
@@ -99,19 +98,19 @@ def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000):
             }
             data.append(datum)
 
-    return extract_text(data, add_spaces, max_tokens)
+    final_text = extract_text(data, add_spaces, max_tokens)
+    if not final_text.strip():
+        print(f"⚠️ OCR completed but no text found in: {image_path}")
+    return final_text
 
-# 🧪 Example usage
+# ----------------- 🧪 Test -----------------
 if __name__ == "__main__":
-    input_img = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\creditagricol\Releve_n_010_du_05_11_2019_1564843101_lQdiIJu2.pdf_1.jpg'
-    output_txt = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\ocr\ocr_output.txt'
+    input_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\corrected_images\corrected_image12022.jpg'
+    output_txt = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\ocr_output.txt'
 
-    text = extract_text_ocr(input_img, add_spaces=True)
-
-    # Save to text file
-    import os
+    text = extract_text_ocr(input_path, add_spaces=True, lang='en', gpu=False)
     os.makedirs(os.path.dirname(output_txt), exist_ok=True)
-    with open(output_txt, 'w', encoding='utf-8') as f:
+    with open(output_txt, "w", encoding="utf-8") as f:
         f.write(text)
 
     print("✅ OCR extraction complete. Text saved to:")

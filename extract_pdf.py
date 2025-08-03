@@ -1,38 +1,56 @@
-import pypdfium2 as pdfium 
+import os
+import pypdfium2 as pdfium
 import tiktoken
+from extract_ocr import extract_text_ocr
 
 def num_tokens(text, model="gpt-3.5-turbo-0613"):
-	"""Return the number of tokens used by a list of messages."""
-	try:
-		encoding = tiktoken.encoding_for_model(model)
-	except KeyError:
-		print("Warning: model not found. Using cl100k_base encoding.")
-		encoding = tiktoken.get_encoding("cl100k_base")
+    try:
+        encoding = tiktoken.encoding_for_model(model)
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    return len(encoding.encode(text))
 
-	num_tokens = len(encoding.encode(text))
-	return num_tokens
+def limit_tokens(text, max_tokens=16000):
+    return text[:max_tokens] if num_tokens(text) > max_tokens else text
 
+def extract_text_pdf(feed: str, multiple_pages: bool = False, max_page_count: int = 3,
+                     page_num: int = 1, max_tokens: int = 16000, lang: str = 'en') -> str:
+    """
+    Extracts text from a PDF, using OCR as fallback if necessary.
+    """
+    try:
+        pdf = pdfium.PdfDocument(feed)
+        texts = []
 
-def limit_tokens (text, max_tokens=16000):
-	num_of_tokens = num_tokens(text)
-	if num_of_tokens > max_tokens:
-		return text[:max_tokens]
-	else:
-		return text
+        if multiple_pages:
+            for i in range(min(len(pdf), max_page_count)):
+                text = _get_text_with_fallback(pdf[i], feed, i + 1, lang)
+                texts.append(text)
+        else:
+            text = _get_text_with_fallback(pdf[page_num - 1], feed, page_num, lang)
+            texts.append(text)
 
-def extract_text_pdf(feed: str, multiple_pages: bool = False, max_page_count: int=2, page_num: int = 1, max_tokens: int = 16000) -> str:
-	""" 	This function makes use of the PyPDFium2 library to extract the text from a pdf file	"""
-	if multiple_pages == False:
-		pdf = pdfium.PdfDocument(feed)
-		text = pdf[page_num - 1].get_textpage().get_text_range()
-		return limit_tokens (text, max_tokens=max_tokens)
-	else:
-		data = []
-		pdf = pdfium.PdfDocument(feed)
-		for i in range (min(len(pdf), max_page_count)):
-			data.append (pdf[i].get_textpage().get_text_range())
-		text = "\n".join(data)
-		return limit_tokens (text, max_tokens=max_tokens)
+        del pdf  # release PDF handle
+        return limit_tokens("\n".join(texts), max_tokens)
 
-# text = extract_text_pdf(r"C:\Users\Jawahar\Downloads\Jawahar_C_Resume.pdf", multiple_pages=True, max_page_count=3, max_tokens=16000)
-# print(text)
+    except Exception as e:
+        print(f"❌ Failed to process PDF: {e}")
+        return ""
+
+def _get_text_with_fallback(page, pdf_path, page_number: int, lang: str) -> str:
+    try:
+        text = page.get_textpage().get_text_range()
+        if text and any(c.isalnum() for c in text):
+            return text
+    except:
+        pass
+
+    # Fallback: render as image and OCR it
+    try:
+        image = page.render(scale=3).to_pil()
+        image_path = os.path.splitext(pdf_path)[0] + f"_page_{page_number}.jpg"
+        image.save(image_path)
+        return extract_text_ocr(image_path, add_spaces=True, max_tokens=16000, lang=lang)
+    except Exception as e:
+        print(f"❌ OCR fallback failed on page {page_number}: {e}")
+        return ""

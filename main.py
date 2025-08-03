@@ -1,75 +1,135 @@
+# ✅ FINAL main.py — Fully Updated for image/pdf input → OCR → LLM → JSON + Excel
+
 import os
 import json
 import cv2
+import unicodedata
+import re
 from dotenv import load_dotenv
-from preprocess import correct_skew
+from preprocess import preprocess_document
 from extract_ocr import extract_text_ocr
-from parse_with_LLM import parse_with_gpt
+from extract_pdf import extract_text_pdf
+from parse_with_LLM import (
+    parse_structured_data,
+    postprocess_task3,
+    export_table_to_excel_openpyxl
+)
 
-# Load environment variables from .env file
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), ".env"))
 
 def ensure_api_key():
-    """
-    Ensure the OpenAI API key is set in the environment.
-    """
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise EnvironmentError("OPENAI_API_KEY is not set. Please set it in the .env file.")
-    os.environ["OPENAI_API_KEY"] = api_key  # Make sure it's available in os.environ too
+        raise EnvironmentError("❌ OPENAI_API_KEY is not set.")
+    os.environ["OPENAI_API_KEY"] = api_key
 
-def process_image(image_path, output_dir, prompt, add_spaces=True, ocr=True):
-    """Processes the image to extract text, sends it to GPT for parsing, and saves the result as a JSON file."""
+def slugify_filename(filename):
+    nfkd = unicodedata.normalize('NFKD', filename)
+    ascii_str = nfkd.encode('ASCII', 'ignore').decode('utf-8')
+    return re.sub(r'[^\w\-_. ]', '_', ascii_str)
+
+def process_file(input_path, output_dir, prompt, add_spaces=True, lang='en'):
     ensure_api_key()
+    file_ext = os.path.splitext(input_path)[1].lower()
+    os.makedirs(output_dir, exist_ok=True)
 
-    try:
-        image = cv2.imread(image_path)
+    base_name = os.path.splitext(os.path.basename(input_path))[0]
+    clean_name = slugify_filename(base_name)
+
+    # STEP 1: Extract text
+    if file_ext in [".jpg", ".jpeg", ".png"]:
+        print("🖼️ Image detected. Running preprocessing + OCR...")
+        image = cv2.imread(input_path)
         if image is None:
-            print(f"Error: Could not read image {image_path}")
+            print(f"❌ Failed to read image: {input_path}")
             return
-    except Exception as e:
-        print(f"Error reading image: {e}")
+
+        angle, corrected_image = preprocess_document(image)
+        print(f"✅ Skew corrected. Angle: {angle:.2f}°")
+
+        corrected_dir = os.path.join(output_dir, "corrected_images")
+        os.makedirs(corrected_dir, exist_ok=True)
+        corrected_image_path = os.path.join(corrected_dir, f"corrected_{clean_name}.jpg")
+        cv2.imwrite(corrected_image_path, corrected_image)
+        print(f"📷 Corrected image saved at: {corrected_image_path}")
+
+        extracted_text = extract_text_ocr(corrected_image_path, add_spaces=add_spaces, max_tokens=16000, lang=lang)
+
+    elif file_ext == ".pdf":
+        print("📄 PDF detected. Extracting text from PDF...")
+        extracted_text = extract_text_pdf(input_path, multiple_pages=True, max_page_count=3, max_tokens=16000, lang=lang)
+
+    else:
+        print(f"❌ Unsupported file type: {file_ext}")
         return
 
-    angle, corrected_image = correct_skew(image)
-    print(f"Corrected skew angle: {angle}")
+    if not extracted_text.strip():
+        print("⚠️ No text extracted. Skipping file.")
+        return
 
-    corrected_image_dir = os.path.join(output_dir, 'corrected_images')
-    os.makedirs(corrected_image_dir, exist_ok=True)
+    print("\n🔍 Extracted Text Preview (first 500 chars):\n")
+    print(extracted_text[:500])
 
-    corrected_image_path = os.path.join(corrected_image_dir, f"corrected_{os.path.basename(image_path)}")
-    cv2.imwrite(corrected_image_path, corrected_image)
-    print(f"Corrected image saved to {corrected_image_path}")
+    debug_text_path = os.path.join(output_dir, f"{clean_name}_ocr_debug.txt")
+    with open(debug_text_path, "w", encoding="utf-8") as f:
+        f.write(extracted_text)
+    print(f"📝 Full OCR text saved for debugging: {debug_text_path}")
 
-    with open(corrected_image_path, 'rb') as img_file:
-        extracted_text = extract_text_ocr(img_file, add_spaces, max_tokens=16000)
+    # STEP 2: GPT Parsing
+    enhanced_prompt = (
+        "You are an intelligent bank statement parser. "
+        "Your task is to extract structured data from scanned or OCR'd text. "
+        "Return the output in the following JSON structure:\n\n"
+        "{\n"
+        "  \"header\": {\"account_holder\": \"\", \"bank\": \"\", \"date_range\": \"\"},\n"
+        "  \"transactions\": [\n"
+        "    {\"date\": \"\", \"description\": \"\", \"amount\": \"\", \"balance\": \"\"},\n"
+        "    ...\n"
+        "  ],\n"
+        "  \"summary\": {\"final_balance\": \"\", \"total_debit\": \"\", \"total_credit\": \"\"}\n"
+        "}\n\n"
+        "Make your best guess even if some information is unclear or approximate."
+        " Use the following OCR text as source:\n\n"
+    )
 
-        if not extracted_text.strip():
-            print(f"OCR failed or no text extracted from {image_path}. Skipping...")
-            return
+    try:
+        parsed_json = parse_structured_data(enhanced_prompt + extracted_text)
+        parsed_json = postprocess_task3(parsed_json)
+    except Exception as e:
+        print(f"❌ GPT parsing failed: {e}")
+        return
 
-        prompt_ending = '\n' if extracted_text[-1] != '\n' else ''
-        full_prompt = prompt + '\n' + extracted_text + prompt_ending
+    # STEP 3: Save JSON
+    json_output_dir = os.path.join(output_dir, "json")
+    os.makedirs(json_output_dir, exist_ok=True)
+    json_path = os.path.join(json_output_dir, f"{clean_name}_parsed.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(parsed_json, f, indent=4, ensure_ascii=False)
+    print(f"📝 JSON saved to: {json_path}")
 
-        try:
-            gpt_response = parse_with_gpt(full_prompt)
-        except Exception as e:
-            print(f"Error with GPT API: {e}")
-            return
+    # STEP 4: Save Excel
+    excel_output_dir = os.path.join(output_dir, "excel")
+    os.makedirs(excel_output_dir, exist_ok=True)
+    excel_path = os.path.join(excel_output_dir, f"{clean_name}_parsed.xlsx")
+    try:
+        table_data = {
+            "columns": ["Date", "Description", "Amount", "Balance"],
+            "rows": [
+                [txn.get("date", ""), txn.get("description", ""), txn.get("amount", ""), txn.get("balance", "")]
+                for txn in parsed_json.get("transactions", [])
+                if txn.get("date") and txn.get("amount")
+            ]
+        }
+        export_table_to_excel_openpyxl(table_data, excel_path)
+        print(f"📊 Excel saved to: {excel_path}")
+    except Exception as e:
+        print(f"❌ Excel export failed: {e}")
 
-        base_name = os.path.basename(image_path)
-        output_file_name = f"{os.path.splitext(base_name)[0]}.json"
-        output_file_path = os.path.join(output_dir, output_file_name)
+    print("✅ All tasks completed successfully!")
 
-        with open(output_file_path, 'w', encoding='utf-8') as json_file:
-            json.dump(gpt_response, json_file, indent=4, ensure_ascii=False)
-
-        print(f"Output saved to {output_file_path}")
-
+# -------------------- Run Script --------------------
 if __name__ == "__main__":
-    # ✅ CHANGE these paths as per your setup
-    input_image = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\caisseepargne\17515_2019-03-01.pdf_1.jpg'
-    output_directory = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output'
-    prompt = "Extract relevant available data from the following bank statement text, and return in JSON format."
-
-    process_image(input_image, output_directory, prompt)
+    input_path = r"C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\banquepopulaire\EXTRAIT-22217785648-20191031.pdf_1.jpg"
+    output_directory = r"C:\\Users\\vikas\\OneDrive\\Desktop\\GMI-TASK\\output"
+    prompt = ""  # prompt now embedded in the enhanced_prompt above
+    process_file(input_path, output_directory, prompt, lang='en')
