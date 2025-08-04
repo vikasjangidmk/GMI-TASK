@@ -8,7 +8,7 @@ import re
 from dotenv import load_dotenv
 from preprocess import preprocess_document
 from extract_ocr import extract_text_ocr
-from extract_pdf import extract_text_pdf
+from extract_pdf import extract_text_pdf, extract_text_pdf_with_preprocessing
 from parse_with_LLM import (
     parse_structured_data,
     postprocess_task3,
@@ -28,7 +28,7 @@ def slugify_filename(filename):
     ascii_str = nfkd.encode('ASCII', 'ignore').decode('utf-8')
     return re.sub(r'[^\w\-_. ]', '_', ascii_str)
 
-def process_file(input_path, output_dir, prompt, add_spaces=True, lang='en'):
+def process_file(input_path, output_dir, prompt="", add_spaces=True, lang='en', use_enhanced_pdf=True):
     ensure_api_key()
     file_ext = os.path.splitext(input_path)[1].lower()
     os.makedirs(output_dir, exist_ok=True)
@@ -56,8 +56,18 @@ def process_file(input_path, output_dir, prompt, add_spaces=True, lang='en'):
         extracted_text = extract_text_ocr(corrected_image_path, add_spaces=add_spaces, max_tokens=16000, lang=lang)
 
     elif file_ext == ".pdf":
-        print("📄 PDF detected. Extracting text from PDF...")
-        extracted_text = extract_text_pdf(input_path, multiple_pages=True, max_page_count=3, max_tokens=16000, lang=lang)
+        if use_enhanced_pdf:
+            print("📄 PDF detected. Converting all pages to images and processing with OCR...")
+            extracted_text = extract_text_pdf_with_preprocessing(
+                input_path, 
+                output_dir, 
+                max_page_count=None,  
+                max_tokens=16000, 
+                lang=lang
+            )
+        else:
+            print("📄 PDF detected. Using standard PDF text extraction...")
+            extracted_text = extract_text_pdf(input_path, multiple_pages=True, max_page_count=3, max_tokens=16000, lang=lang)
 
     else:
         print(f"❌ Unsupported file type: {file_ext}")
@@ -75,25 +85,33 @@ def process_file(input_path, output_dir, prompt, add_spaces=True, lang='en'):
         f.write(extracted_text)
     print(f"📝 Full OCR text saved for debugging: {debug_text_path}")
 
-    # STEP 2: GPT Parsing
-    enhanced_prompt = (
-        "You are an intelligent bank statement parser. "
-        "Your task is to extract structured data from scanned or OCR'd text. "
-        "Return the output in the following JSON structure:\n\n"
-        "{\n"
-        "  \"header\": {\"account_holder\": \"\", \"bank\": \"\", \"date_range\": \"\"},\n"
-        "  \"transactions\": [\n"
-        "    {\"date\": \"\", \"description\": \"\", \"amount\": \"\", \"balance\": \"\"},\n"
-        "    ...\n"
-        "  ],\n"
-        "  \"summary\": {\"final_balance\": \"\", \"total_debit\": \"\", \"total_credit\": \"\"}\n"
-        "}\n\n"
-        "Make your best guess even if some information is unclear or approximate."
-        " Use the following OCR text as source:\n\n"
-    )
+    # STEP 2: GPT Parsing — Updated Prompt to match parse_with_LLM.py
+    enhanced_prompt = f"""
+You are an expert at extracting structured data from bank statements.
+
+Cleaned Bank Statement Text:
+{extracted_text}
+
+Extract the following information and return it as a JSON object:
+- account_number: The account number if found
+- bank_name: The bank name if found
+- account_holder: The account holder name if found
+- statement_period: The statement period (from date to date)
+- opening_balance: The opening/starting balance (as a number)
+- closing_balance: The closing/ending balance (as a number)
+- transactions: A list of transactions, each with:
+  - date: Transaction date (in YYYY-MM-DD format if possible)
+  - description: Transaction description
+  - amount: Transaction amount (positive for credits, negative for debits)
+  - balance: Running balance after transaction (if available)
+  - transaction_type: "debit" or "credit" based on the amount
+
+If any field is not found or unclear, use null. Don't make assumptions.
+Return only the JSON object:
+"""
 
     try:
-        parsed_json = parse_structured_data(enhanced_prompt + extracted_text)
+        parsed_json = parse_structured_data(enhanced_prompt)
         parsed_json = postprocess_task3(parsed_json)
     except Exception as e:
         print(f"❌ GPT parsing failed: {e}")
@@ -127,9 +145,35 @@ def process_file(input_path, output_dir, prompt, add_spaces=True, lang='en'):
 
     print("✅ All tasks completed successfully!")
 
+def batch_process_files(input_directory, output_directory, file_pattern="*", lang='en', use_enhanced_pdf=True):
+    """Batch process multiple files in a directory."""
+    import glob
+    
+    pattern_path = os.path.join(input_directory, file_pattern)
+    files = glob.glob(pattern_path)
+    
+    if not files:
+        print(f"❌ No files found matching pattern: {pattern_path}")
+        return
+    
+    print(f"📂 Found {len(files)} files to process...")
+    
+    for i, file_path in enumerate(files, 1):
+        print(f"\n🔄 Processing file {i}/{len(files)}: {os.path.basename(file_path)}")
+        try:
+            process_file(file_path, output_directory, "", lang=lang, use_enhanced_pdf=use_enhanced_pdf)
+            print(f"✅ File {i}/{len(files)} completed successfully!")
+        except Exception as e:
+            print(f"❌ Failed to process {file_path}: {e}")
+            continue
+    
+    print(f"\n🎉 Batch processing completed! Processed {len(files)} files.")
+
 # -------------------- Run Script --------------------
 if __name__ == "__main__":
-    input_path = r"C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\banquepopulaire\EXTRAIT-22217785648-20191031.pdf_1.jpg"
-    output_directory = r"C:\\Users\\vikas\\OneDrive\\Desktop\\GMI-TASK\\output"
-    prompt = ""  # prompt now embedded in the enhanced_prompt above
-    process_file(input_path, output_directory, prompt, lang='en')
+    # Test with PDF file (enhanced processing)
+    input_path = r"C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\quonto\test1.pdf"
+    output_directory = r"C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\output/test_pdf_output"
+    process_file(input_path, output_directory, lang='en', use_enhanced_pdf=True)
+    
+

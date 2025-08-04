@@ -1,14 +1,19 @@
 import os
-import easyocr
+import pytesseract
+from PIL import Image
+import numpy as np
 import tiktoken
 import itertools
 from operator import itemgetter
-from PIL import Image
-import numpy as np
 
-def get_easyocr_reader(lang='en', gpu=False):
-    return easyocr.Reader([lang], gpu=gpu)
+# ----- Tesseract Setup -----
+# Correct path to Tesseract executable
+pytesseract.pytesseract.tesseract_cmd = r"C:\Users\vikas\AppData\Local\Programs\Tesseract-OCR\tesseract.exe"
 
+# Correct path to parent folder of tessdata
+os.environ["TESSDATA_PREFIX"] = r"C:\Users\vikas\AppData\Local\Programs\Tesseract-OCR\tessdata"
+
+# ----- Token Utilities -----
 def num_tokens(text, model="gpt-3.5-turbo-0613"):
     try:
         encoding = tiktoken.encoding_for_model(model)
@@ -20,6 +25,7 @@ def num_tokens(text, model="gpt-3.5-turbo-0613"):
 def limit_tokens(text, max_tokens=16000):
     return text[:max_tokens] if num_tokens(text) > max_tokens else text
 
+# ----- Clustering Utilities -----
 def cluster_list(xs, tolerance=0):
     if tolerance == 0 or len(xs) < 2:
         return [[x] for x in sorted(xs)]
@@ -35,9 +41,7 @@ def cluster_list(xs, tolerance=0):
 
 def make_cluster_dict(values, tolerance):
     clusters = cluster_list(list(set(values)), tolerance)
-    nested_tuples = [
-        [(val, i) for val in value_cluster] for i, value_cluster in enumerate(clusters)
-    ]
+    nested_tuples = [[(val, i) for val in cluster] for i, cluster in enumerate(clusters)]
     return dict(itertools.chain(*nested_tuples))
 
 def cluster_objects(xs, tolerance):
@@ -49,6 +53,7 @@ def cluster_objects(xs, tolerance):
     grouped = itertools.groupby(cluster_tuples, key=get_1)
     return [list(map(get_0, v)) for k, v in grouped]
 
+# ----- OCR Text Utilities -----
 def get_avg_char_width(data):
     height = 1000
     sum_widths = 0.0
@@ -81,20 +86,27 @@ def extract_text(data, add_spaces=True, max_tokens=16000):
     text = "\n".join(lines)
     return limit_tokens(text, max_tokens)
 
-def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000, lang='en', gpu=False):
-    reader = get_easyocr_reader(lang=lang, gpu=gpu)
-    results = reader.readtext(image_path, detail=1)
+# ----- Main OCR Function -----
+def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000, lang="eng"):
+    """OCR extraction with language fallback and confidence filtering."""
+    if lang.lower() == "en":
+        lang = "eng"
+
+    image = Image.open(image_path)
+    ocr_data = pytesseract.image_to_data(image, lang=lang, output_type=pytesseract.Output.DICT)
 
     data = []
-    for (bbox, text, conf) in results:
-        if conf > 0.5:
-            x1 = int(min([point[0] for point in bbox]))
-            y1 = int(min([point[1] for point in bbox]))
-            x2 = int(max([point[0] for point in bbox]))
-            y2 = int(max([point[1] for point in bbox]))
+    for i in range(len(ocr_data['text'])):
+        text = ocr_data['text'][i].strip()
+        try:
+            conf = int(ocr_data['conf'][i])
+        except ValueError:
+            conf = 0
+        if text and conf > 50:
+            x, y, w, h = ocr_data['left'][i], ocr_data['top'][i], ocr_data['width'][i], ocr_data['height'][i]
             datum = {
                 'value': text,
-                'coordinates': [x1, y1, x2, y2]
+                'coordinates': [x, y, x + w, y + h]
             }
             data.append(datum)
 
@@ -103,12 +115,12 @@ def extract_text_ocr(image_path, add_spaces=True, max_tokens=16000, lang='en', g
         print(f"⚠️ OCR completed but no text found in: {image_path}")
     return final_text
 
-# ----------------- 🧪 Test -----------------
+# ----- Test Run -----
 if __name__ == "__main__":
-    input_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\corrected_images\corrected_image12022.jpg'
+    input_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\banquepopulaire\avril6BP.jpg'
     output_txt = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\output\ocr_output.txt'
 
-    text = extract_text_ocr(input_path, add_spaces=True, lang='en', gpu=False)
+    text = extract_text_ocr(input_path, add_spaces=True, lang="eng")
     os.makedirs(os.path.dirname(output_txt), exist_ok=True)
     with open(output_txt, "w", encoding="utf-8") as f:
         f.write(text)

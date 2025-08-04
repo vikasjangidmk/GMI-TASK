@@ -62,7 +62,7 @@ def preprocess_document(image):
 
 # 🔧 Test block
 if __name__ == '__main__':
-    image_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\skew_check\doc_skew.png'
+    image_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\gmindia-challlenge-012024-datas\banquepopulaire\avril6BP.jpg'
     output_path = r'C:\Users\vikas\OneDrive\Desktop\GMI-TASK\skew_check\corrected_final_best.png'
 
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
